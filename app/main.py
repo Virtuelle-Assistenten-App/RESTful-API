@@ -115,7 +115,7 @@ async def healthcheck():
         cursor.fetchone()
         cursor.close()
         return {"message": "API is running", "database_connection": True}
-    except mysql.connector.Error as err:
+    except Exception as err:
         return {"message": f"API is running, but there was an error connecting to the database: {err}",
                 "database_connection": False}
 
