@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     MYSQL_INITDB_DATABASE: str
     GITHUB_LOGIN_ID: str
     GITHUB_LOGIN_SECRET: str
+    JWT_PRIVATE_KEY: str
 
     class Config:
         env_file = './.env'
