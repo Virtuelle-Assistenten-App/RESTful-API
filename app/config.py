@@ -2,7 +2,6 @@ from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
-    JWT_PUBLIC_KEY: str
     JWT_PRIVATE_KEY: str
     REFRESH_TOKEN_EXPIRES_IN: int
     ACCESS_TOKEN_EXPIRES_IN: int
@@ -11,6 +10,8 @@ class Settings(BaseSettings):
     MYSQL_INITDB_ROOT_USERNAME: str
     MYSQL_INITDB_ROOT_PASSWORD: str
     MYSQL_INITDB_DATABASE: str
+    GITHUB_LOGIN_ID: str
+    GITHUB_LOGIN_SECRET: str
 
     class Config:
         env_file = './.env'
