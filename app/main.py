@@ -1,19 +1,26 @@
+import logging
 import os
 from datetime import datetime, timedelta
 
 import httpx
 import jwt
 import mysql.connector
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer
 from starlette.responses import RedirectResponse
 
 from app.config import settings
+from app.schemas.User import User
 
 app = FastAPI()
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 GITHUB_LOGIN_ID = settings.GITHUB_LOGIN_ID
 GITHUB_LOGIN_SECRET = settings.GITHUB_LOGIN_SECRET
-JWT_PRIVATE_KEY = settings.JWT_PRIVATE_KEY
+JWT_PRIVATE_KEY_PATH = os.path.join(os.path.dirname(__file__), "private_key.pem")
 JWT_ALGORITHM = settings.JWT_ALGORITHM
 
 mydb = mysql.connector.connect(
@@ -30,13 +37,31 @@ def create_jwt_token(user_id):
         "exp": datetime.utcnow() + timedelta(minutes=15),
     }
 
-    pem_file_path = os.path.join(os.path.dirname(__file__), "private_key.pem")
-
-    with open(pem_file_path, "rb") as f:
+    with open(JWT_PRIVATE_KEY_PATH, "rb") as f:
         private_key = f.read()
 
     token = jwt.encode(payload, private_key, algorithm=JWT_ALGORITHM)
     return token
+
+
+security = HTTPBearer()
+
+
+def get_current_user(request: Request, authorization: str = Header(None)) -> None:
+    print("Authorization Header:", authorization)
+
+    if authorization is None or not authorization.startswith("Bearer "):
+        return None
+
+    access_token = authorization.replace("Bearer ", "")
+
+    try:
+        payload = jwt.decode(access_token, JWT_PRIVATE_KEY_PATH, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        print("Token expired.")
+    except jwt.InvalidTokenError:
+        print("Invalid token.")
 
 
 def find_user_by_github_id(github_id):
@@ -102,6 +127,7 @@ async def github_login():
 
 @app.get("/v1/auth/github-callback")
 async def github_callback(code: str):
+    # Code-Austausch gegen Zugriffstoken
     params = {
         'client_id': GITHUB_LOGIN_ID,
         'client_secret': GITHUB_LOGIN_SECRET,
@@ -120,6 +146,7 @@ async def github_callback(code: str):
     if access_token is None:
         raise HTTPException(status_code=400, detail="Invalid GitHub API response")
 
+    # Abrufen von Benutzerdaten von GitHub
     async with httpx.AsyncClient() as client:
         headers.update({'Authorization': f'token {access_token}'})
 
@@ -135,15 +162,54 @@ async def github_callback(code: str):
     if existing_user is None:
         user_id = save_github_user_to_database(github_user_data)
 
-        return {"message": "Erfolgreich registriert und angemeldet", "user_id": user_id,
-                "github_data": github_user_data}
+        jwt_token = create_jwt_token(user_id)
+
+        content = {"message": "Erfolgreich registriert und angemeldet",
+                   "access_token": jwt_token.decode(),
+                   "token_type": "bearer",
+                   "user_id": user_id,
+                   "github_data": github_user_data}
+
+        response = JSONResponse(content=content)
+        response.set_cookie(key="access_token", value=jwt_token, httponly=True)
+
+        current_user = User(username=github_user_data.get("login"), name=github_user_data.get("name"),
+                            token=jwt_token.decode())
+
+        return response
     else:
         user_id = existing_user['id']
 
-    jwt_token = create_jwt_token(user_id)
+        jwt_token = create_jwt_token(user_id)
 
-    return {"message": "Erfolgreich angemeldet",
-            "access_token": jwt_token,
-            "token_type": "bearer",
-            "user_id": user_id,
-            "github_data": github_user_data}
+        content = {"message": "Erfolgreich angemeldet",
+                   "access_token": jwt_token.decode(),
+                   "token_type": "bearer",
+                   "user_id": user_id,
+                   "github_data": github_user_data}
+
+        response = JSONResponse(content=content)
+        response.set_cookie(key="access_token", value=jwt_token, httponly=True)
+
+        current_user = User(username=github_user_data.get("login"), name=github_user_data.get("name"),
+                            token=jwt_token.decode())
+
+        return response
+
+
+@app.get("/protected-route/")
+async def protected_route(current_user: dict = Depends(get_current_user)):
+    logger.debug(f"Current user: {current_user}")
+
+    if not current_user:
+        logger.debug("Not authenticated")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    logger.debug("Authenticated")
+    return {"message": "Hello, you are authenticated!"}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    logger.debug(f"HTTPException: {exc.status_code} - {exc.detail}")
+    return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
