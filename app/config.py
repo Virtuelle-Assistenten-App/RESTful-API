@@ -2,7 +2,6 @@ from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
-    JWT_PRIVATE_KEY: str
     REFRESH_TOKEN_EXPIRES_IN: int
     ACCESS_TOKEN_EXPIRES_IN: int
     JWT_ALGORITHM: str
