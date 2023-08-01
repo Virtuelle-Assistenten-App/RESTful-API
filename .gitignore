@@ -1,2 +1,2 @@
 .env
-/app/private_key.pem
+/app/secrets/private_key.pem
