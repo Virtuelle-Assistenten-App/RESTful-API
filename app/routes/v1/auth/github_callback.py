@@ -15,6 +15,7 @@ JWT_ALGORITHM = settings.JWT_ALGORITHM
 
 @router_callback.get("/github-callback")
 async def github_callback(code: str):
+    print("Code:", code)
     params = {
         'client_id': GITHUB_LOGIN_ID,
         'client_secret': GITHUB_LOGIN_SECRET,
@@ -39,6 +40,8 @@ async def github_callback(code: str):
         response = await client.get('https://api.github.com/user', headers=headers)
 
     github_user_data = response.json()
+
+    print("GitHub User Data:", github_user_data)
 
     if 'id' not in github_user_data:
         raise HTTPException(status_code=400, detail="Invalid GitHub user data")
