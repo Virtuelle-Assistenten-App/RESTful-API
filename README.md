@@ -13,17 +13,10 @@ authentifizieren und mehr.
 pip install -r requirements.txt
 ```
 
-3. Starte die Entwicklungsserver mit dem Befehl:
-
-```bash
-python main.py runserver
-```
-
 ## Endpunkte
 
-* `POST /v1/healthcheck`: Dieser Endpunkt dient dazu, den Status der API und die Verbindung zur Datenbank zu überprüfen.
-* `POST /v1/auth/register`: Mit diesem Endpunkt kann ein neuer Benutzer registriert werden.
-* `POST /v1/auth/login`: Mit diesem Endpunkt kann sich ein Benutzer anmelden.
+* `POST /v1/auth/login`: Authentifiziert einen Benutzer über Github und gibt ein JWT-Token zurück.
+* `POST /v1/auth/logout`: Meldet einen Benutzer ab und löscht das JWT-Token.
 
 ## Fehlerbehandlung
 
